@@ -44,5 +44,7 @@ TEST_CASE("kvstore") {
 	
 	REQUIRE(std::getline(in, value));
 	REQUIRE(value == "world");
+
+	in.reset();
 }
 

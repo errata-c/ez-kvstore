@@ -6,22 +6,22 @@ namespace ez {
 	public:
 		membuf()
 		{
-			this->setg(0, 0, 0);
+			reset();
 		}
-		template<typename T>
-		membuf(const T* first, const T* last)
+		membuf(const char* first, const char* last)
 		{
-			this->setg((char*)const_cast<T*>(first), (char*)const_cast<T*>(first), (char*)const_cast<T*>(last));
+			reset(first, last);
 		}
-		template<typename T>
-		membuf(const T* first, std::size_t num)
+		membuf(const char* first, std::size_t len)
 		{
-			this->setg((char*)const_cast<T*>(first), (char*)const_cast<T*>(first), (char*)const_cast<T*>(first + num));
+			reset(first, len);
 		}
 
-		template<typename T>
-		void reset(const T* first, const T* last) {
-			this->setg((char*)const_cast<T*>(first), (char*)const_cast<T*>(first), (char*)const_cast<T*>(last));
+		void reset(const char* first, std::size_t len) {
+			reset(first, first + len);
+		}
+		void reset(const char* first, const char* last) {
+			this->setg(const_cast<char*>(first), const_cast<char*>(first), const_cast<char*>(last));
 		}
 		void reset() {
 			this->setg(0, 0, 0);
@@ -57,17 +57,6 @@ namespace ez {
 			, mbuf()
 		{}
 
-		template<typename T>
-		imemstream(const T* data, std::size_t size)
-			: std::istream(&mbuf)
-			, mbuf(data, size)
-		{}
-		template<typename T>
-		imemstream(const T* data, const T* end)
-			: std::istream(&mbuf)
-			, mbuf(data, end)
-		{}
-
 		imemstream(const char * data, std::size_t size)
 			: std::istream(&mbuf)
 			, mbuf(data, size)
@@ -77,9 +66,11 @@ namespace ez {
 			, mbuf(data, end)
 		{}
 
-		template<typename T>
-		void reset(const T* first, const T* last) {
+		void reset(const char* first, const char* last) {
 			mbuf.reset(first, last);
+		}
+		void reset(const char* first, std::size_t len) {
+			mbuf.reset(first, first + len);
 		}
 		void reset() {
 			mbuf.reset();
