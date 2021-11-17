@@ -4,22 +4,9 @@
 #include <iostream>
 #include <fmt/core.h>
 
-#include "xxhash.h"
-
 namespace ez {
 	// I have no choice but to implement hashing manually for the data blobs.
 	// SQLite does not support easily selecting blobs.
-	// 
-	// Define a simple hashing function, that handles the conversions for us
-	int64_t hashStr(std::string_view data) {
-		union {
-			int64_t ival;
-			uint64_t uval;
-		} convert;
-
-		convert.uval = XXH3_64bits(data.data(), data.length());
-		return convert.ival;
-	}
 
 	// The id is the first 8 hex values of the sha256 hash of "ez-kvstore", 0xCB4D74FF
 	static constexpr int32_t application_id = 0xCB4D74FF;
@@ -306,7 +293,7 @@ namespace ez {
 
 			SQLite::Statement& stmt = containsStmt.value();
 
-			stmt.bind(1, hashStr(name));
+			stmt.bind(1, kvhash(name));
 			return stmt.executeStep();
 		}
 		else {
@@ -328,7 +315,7 @@ namespace ez {
 
 			SQLite::Statement& stmt = getStmt.value();
 
-			stmt.bind(1, hashStr(name));
+			stmt.bind(1, kvhash(name));
 			if (stmt.executeStep()) {
 				SQLite::Column col = stmt.getColumn(0);
 				data = col.getBlob();
@@ -380,7 +367,7 @@ namespace ez {
 			}
 
 			SQLite::Statement& stmt = setStmt.value();
-			stmt.bind(1, hashStr(key));
+			stmt.bind(1, kvhash(key));
 			stmt.bind(2, key.data(), key.length());
 			stmt.bind(3, value.data(), value.length());
 			bool res = stmt.executeStep();
@@ -405,7 +392,7 @@ namespace ez {
 			}
 
 			SQLite::Statement& stmt = eraseStmt.value();
-			stmt.bind(1, hashStr(name));
+			stmt.bind(1, kvhash(name));
 			bool res = stmt.executeStep();
 			assert(res == true);
 

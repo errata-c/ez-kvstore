@@ -1,7 +1,22 @@
 #include <ez/KVStore.hpp>
 #include "KVPrivate.hpp"
 
+#include "xxhash.h"
+
 namespace ez {
+	int64_t kvhash(const char* data, std::size_t len) {
+		union {
+			int64_t ival;
+			uint64_t uval;
+		} convert;
+
+		convert.uval = XXH3_64bits(data, len);
+		return convert.ival;
+	}
+	int64_t kvhash(std::string_view data) {
+		return kvhash(data.data(), data.length());
+	}
+
 	KVStore::KVStore()
 		: impl(new KVPrivate{})
 	{}
@@ -15,6 +30,14 @@ namespace ez {
 		: impl(other.impl)
 	{
 		other.impl = nullptr;
+	}
+	KVStore& KVStore::operator=(KVStore&& other) noexcept {
+		KVStore tmp{ std::move(other) };
+		swap(tmp);
+		return *this;
+	}
+	void KVStore::swap(KVStore& other) noexcept {
+		std::swap(impl, other.impl);
 	}
 
 	bool KVStore::isOpen() const noexcept {

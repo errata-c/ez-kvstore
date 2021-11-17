@@ -1,9 +1,13 @@
 #pragma once
 #include <string_view>
 #include <filesystem>
+#include <cinttypes>
 #include <ez/memstream.hpp>
 
 namespace ez {
+	int64_t kvhash(const char* data, std::size_t len);
+	int64_t kvhash(std::string_view data);
+
 	class KVPrivate;
 
 	class KVStore {
@@ -15,7 +19,8 @@ namespace ez {
 		KVStore(KVStore&&) noexcept;
 
 		//KVStore& operator=(const KVStore&);
-		//KVStore& operator=(KVStore&&) noexcept;
+		KVStore& operator=(KVStore&&) noexcept;
+		void swap(KVStore& other) noexcept;
 
 		bool isOpen() const noexcept;
 
