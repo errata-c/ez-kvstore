@@ -219,9 +219,7 @@ namespace ez {
 			"SELECT \"value\" FROM ez_kvstore_meta WHERE \"key\" = \"kind\";"
 		};
 
-		stmt.executeStep();
-
-		if (stmt.hasRow()) {
+		if (stmt.executeStep()) {
 			SQLite::Column col = stmt.getColumn(0);
 			kind.assign((const char *)col.getBlob(), col.getBytes());
 			return true;
@@ -257,13 +255,16 @@ namespace ez {
 					"SELECT COUNT(*) FROM ez_kvstore;"
 				);
 			}
+			else {
+				countStmt.value().reset();
+			}
+
 			SQLite::Statement& stmt = countStmt.value();
 			bool res = stmt.executeStep();
-			assert(res == false);
+			assert(res == true);
 
 			int64_t val = stmt.getColumn(0).getInt64();
 			assert(val >= 0);
-			stmt.reset();
 			return static_cast<std::size_t>(val);
 		}
 		else {
@@ -299,12 +300,14 @@ namespace ez {
 					"SELECT 1 WHERE EXISTS (SELECT * FROM ez_kvstore WHERE \"hash\"=?)"
 				);
 			}
+			else {
+				containsStmt.value().reset();
+			}
+
 			SQLite::Statement& stmt = containsStmt.value();
 
 			stmt.bind(1, hashStr(name));
-			bool res = stmt.executeStep();
-			stmt.reset();
-			return res;
+			return stmt.executeStep();
 		}
 		else {
 			return false;
@@ -319,6 +322,10 @@ namespace ez {
 					"SELECT \"value\" FROM ez_kvstore WHERE \"hash\"=?"
 				);
 			}
+			else {
+				getStmt.value().reset();
+			}
+
 			SQLite::Statement& stmt = getStmt.value();
 
 			stmt.bind(1, hashStr(name));
@@ -326,11 +333,9 @@ namespace ez {
 				SQLite::Column col = stmt.getColumn(0);
 				data.assign((const char*)col.getBlob(), col.getBytes());
 				
-				stmt.reset();
 				return true;
 			}
 			else {
-				stmt.reset();
 				return false;
 			}
 		}
@@ -346,6 +351,10 @@ namespace ez {
 					"INSERT INTO ez_kvstore (\"hash\", \"key\", \"value\") VALUES (?, ?, ?) ON CONFLICT(\"hash\") DO UPDATE SET \"value\"=excluded.\"value\";"
 				);
 			}
+			else {
+				setStmt.value().reset();
+			}
+
 			SQLite::Statement& stmt = setStmt.value();
 			stmt.bind(1, hashStr(key));
 			stmt.bind(2, key.data(), key.length());
@@ -353,7 +362,6 @@ namespace ez {
 			bool res = stmt.executeStep();
 			assert(res == false);
 
-			stmt.reset();
 			return true;
 		}
 		else {
@@ -368,14 +376,16 @@ namespace ez {
 					"DELETE FROM ez_kvstore WHERE \"hash\" = ?; SELECT changes();"
 				);
 			}
+			else {
+				eraseStmt.value().reset();
+			}
+
 			SQLite::Statement& stmt = eraseStmt.value();
 			stmt.bind(1, hashStr(name));
 			bool res = stmt.executeStep();
-			assert(res == false);
+			assert(res == true);
 
-			res = stmt.getColumn(0).getInt() == 1;
-			stmt.reset();
-			return res;
+			return stmt.getColumn(0).getInt() == 1;
 		}
 		else {
 			return false;
