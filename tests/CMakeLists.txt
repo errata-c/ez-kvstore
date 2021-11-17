@@ -1,8 +1,14 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 
-project(${CMAKE_PROJECT_NAME}-tests 
-VERSION 1.0.0
-LANGUAGES C CXX)
+find_package(Catch2 CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 
-add_executable(basic_test "basic/main.cpp")
-target_link_libraries("basic_test" PRIVATE ${CMAKE_PROJECT_NAME})
+add_executable(basic_test 
+	"basic/main.cpp"
+	"basic/streambuf.cpp"
+)
+target_link_libraries("basic_test" PRIVATE 
+	ez::kvstore
+	Catch2::Catch2
+	fmt::fmt
+)

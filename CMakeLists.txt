@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(EZ_TEMPLATE
+project(EZ_KVSTORE
 VERSION 0.1.0
 LANGUAGES C CXX)
 
-set(PACKAGE_NAME ez-template)
-set(TARGET_NAME template)
+set(PACKAGE_NAME "ez-kvstore")
+set(TARGET_NAME "kvstore")
 
 include(GNUInstallDirs)
 include(FetchContent)
@@ -21,26 +21,27 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(ez-cmake)
 
 # Find deps
-#find_package(glm CONFIG REQUIRED)
+find_package(SQLiteCpp CONFIG REQUIRED)
+find_package(ez-bitflags CONFIG REQUIRED)
 
 # Create main target.
-add_library(${TARGET_NAME} INTERFACE
-	# Add source files
-	#"src/IntersectFunctions.cpp"
+add_library(${TARGET_NAME} STATIC
+	"src/KVStore.cpp"
+	"src/KVPrivate.cpp"
 )
 
-# Add the include directory
-target_include_directories(${TARGET_NAME} INTERFACE 
-
-	# Build only include directories
+target_include_directories(${TARGET_NAME} PUBLIC 
 	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-
-	# Install include directories
 	"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
+target_link_libraries(${TARGET_NAME} PUBLIC
+	SQLiteCpp
+	ez::bitflags
+)
+
 # Select the c++ version to use.
-target_compile_features(${TARGET_NAME} INTERFACE cxx_std_17)
+target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
 
 # Just for internal compatibility, so that subprojects can use the namespaced version
 add_library("ez::${TARGET_NAME}" ALIAS "${TARGET_NAME}")
@@ -77,13 +78,7 @@ install_package(
 	# Relative install location of the package config files.
 	DESTINATION "${${PACKAGE_NAME}_CONFIG_DIR}"
 
-	# Pre and Post configuration files for the packages. Files are run as scripts when the package is found.
-	# Most dependencies must be found in the preconfig file, except non-target dependencies
-	# Non-target dependencies should probably be found in the post config, and added onto the imported target manually.
-	# Non-target dependencies kinda suck, avoid them if you can.
-
-	#PRECONFIG "cmake/preconfig.cmake"
-	#POSTCONFIG "cmake/postconfig.cmake"
+	PRECONFIG "cmake/preconfig.cmake"
 
 	# Only add this option if the library is header only, or an interface library.
 	ARCH_INDEPENDENT
