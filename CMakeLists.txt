@@ -81,7 +81,4 @@ install_package(
 	DESTINATION "${${PACKAGE_NAME}_CONFIG_DIR}"
 
 	PRECONFIG "cmake/preconfig.cmake"
-
-	# Only add this option if the library is header only, or an interface library.
-	ARCH_INDEPENDENT
 )
