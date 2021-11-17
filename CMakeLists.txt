@@ -23,7 +23,7 @@ FetchContent_MakeAvailable(ez-cmake)
 # Find deps
 find_package(SQLiteCpp CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
-find_package(ez-bitflags CONFIG REQUIRED)
+find_package(xxHash CONFIG REQUIRED)
 
 # Create main target.
 add_library(${TARGET_NAME} STATIC
@@ -39,7 +39,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
 target_link_libraries(${TARGET_NAME} PUBLIC
 	SQLiteCpp
 	fmt::fmt
-	ez::bitflags
+	xxHash::xxhash
 )
 
 # Select the c++ version to use.

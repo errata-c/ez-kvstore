@@ -22,7 +22,15 @@ TEST_CASE("kvstore") {
 	REQUIRE(!store.set("test", value));
 	REQUIRE(!store.erase("test"));
 	REQUIRE(!store.contains("test"));
+	
 
-	bool res = store.open(path);
-	REQUIRE(res);
+	REQUIRE(store.open(path, true));
+
+	REQUIRE(store.contains("hello"));
+
+	REQUIRE(store.get("hello", value));
+	REQUIRE(value == "world");
+
+	REQUIRE(store.get("what", value));
+	REQUIRE(value == "fun");
 }

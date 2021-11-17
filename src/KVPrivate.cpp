@@ -4,9 +4,26 @@
 #include <iostream>
 #include <fmt/core.h>
 
+#include "xxhash.h"
+
 namespace ez {
+	// I have no choice but to implement hashing manually for the data blobs.
+	// SQLite does not support easily selecting blobs.
+	// 
+	// Define a simple hashing function, that handles the conversions for us
+	int64_t hashStr(std::string_view data) {
+		union {
+			int64_t ival;
+			uint64_t uval;
+		} convert;
+
+		convert.uval = XXH3_64bits(data.data(), data.length());
+		return convert.ival;
+	}
+
 	// The id is the first 8 hex values of the sha256 hash of "ez-kvstore", 0xCB4D74FF
 	static constexpr int32_t application_id = 0xCB4D74FF;
+
 
 	bool KVPrivate::isOpen() const noexcept {
 		return db.has_value();
@@ -46,7 +63,7 @@ namespace ez {
 		try {
 			SQLite::Statement stmt{
 				db.value(),
-				"CREATE TABLE ez_kvstore(\"key\" TEXT NOT NULL UNIQUE, \"value\" TEXT NOT NULL, PRIMARY KEY(\"key\"));"
+				"CREATE TABLE ez_kvstore(\"hash\" INTEGER NOT NULL UNIQUE, \"key\" BLOB NOT NULL, \"value\" BLOB NOT NULL, PRIMARY KEY(\"hash\"));"
 			};
 
 			stmt.executeStep();
@@ -60,12 +77,13 @@ namespace ez {
 		// Set the application_id pragma, so we can identify the database correctly when opening.
 		
 		try {
+			// For some reason this works, while the binding does not...
+			std::string query = fmt::format("PRAGMA main.application_id = {};", application_id);
 			SQLite::Statement stmt{
 				db.value(),
-				"PRAGMA main.application_id = ?;"
+				query
 			};
-			stmt.bind(1, application_id);
-
+			
 			stmt.executeStep();
 		}
 		catch (std::exception &e) {
@@ -78,7 +96,7 @@ namespace ez {
 		try {
 			SQLite::Statement stmt{
 				db.value(),
-				"CREATE TABLE ez_kvstore_meta(\"key\" TEXT NOT NULL UNIQUE, \"value\" TEXT NOT NULL, PRIMARY KEY(\"key\"));"
+				"CREATE TABLE ez_kvstore_meta(\"key\" TEXT NOT NULL UNIQUE, \"value\" BLOB NOT NULL, PRIMARY KEY(\"key\"));"
 			};
 
 			stmt.executeStep();
@@ -93,7 +111,7 @@ namespace ez {
 		try {
 			SQLite::Statement stmt{
 				db.value(),
-				"CREATE INDEX kvidx ON ez_kvstore(\"key\");"
+				"CREATE INDEX kvidx ON ez_kvstore(\"hash\");"
 			};
 
 			stmt.executeStep();
@@ -204,7 +222,8 @@ namespace ez {
 		stmt.executeStep();
 
 		if (stmt.hasRow()) {
-			kind = std::string{ stmt.getColumn(0) };
+			SQLite::Column col = stmt.getColumn(0);
+			kind.assign((const char *)col.getBlob(), col.getBytes());
 			return true;
 		}
 		else {
@@ -277,16 +296,13 @@ namespace ez {
 			if (!containsStmt) {
 				containsStmt.emplace(
 					db.value(),
-					"SELECT 1 WHERE EXISTS (SELECT * FROM ez_kvstore WHERE \"key\"=?)"
+					"SELECT 1 WHERE EXISTS (SELECT * FROM ez_kvstore WHERE \"hash\"=?)"
 				);
 			}
 			SQLite::Statement& stmt = containsStmt.value();
 
-			stmt.bind(1, name.data(), name.length());
+			stmt.bind(1, hashStr(name));
 			bool res = stmt.executeStep();
-			assert(res == false);
-
-			res = stmt.hasRow();
 			stmt.reset();
 			return res;
 		}
@@ -300,39 +316,40 @@ namespace ez {
 			if (!getStmt) {
 				getStmt.emplace(
 					db.value(),
-					"SELECT \"value\" FROM TABLE ez_kvstore WHERE \"key\"=?"
+					"SELECT \"value\" FROM ez_kvstore WHERE \"hash\"=?"
 				);
 			}
 			SQLite::Statement& stmt = getStmt.value();
 
-			stmt.bind(1, name.data(), name.length());
-			bool res = stmt.executeStep();
-			assert(res == false);
-
-			res = false;
-			if (stmt.hasRow()) {
-				data = std::string{ stmt.getColumn(0) };
-				res = true;
+			stmt.bind(1, hashStr(name));
+			if (stmt.executeStep()) {
+				SQLite::Column col = stmt.getColumn(0);
+				data.assign((const char*)col.getBlob(), col.getBytes());
+				
+				stmt.reset();
+				return true;
 			}
-
-			stmt.reset();
-			return res;
+			else {
+				stmt.reset();
+				return false;
+			}
 		}
 		else {
 			return false;
 		}
 	}
-	bool KVPrivate::set(std::string_view name, std::string_view data) {
+	bool KVPrivate::set(std::string_view key, std::string_view value) {
 		if (db) {
 			if (!setStmt) {
 				setStmt.emplace(
 					db.value(),
-					"INSERT INTO ez_kvstore (\"key\", \"value\") VALUES (?, ?) ON CONFLICT(\"key\") DO UPDATE SET \"value\"=excluded.\"value\";"
+					"INSERT INTO ez_kvstore (\"hash\", \"key\", \"value\") VALUES (?, ?, ?) ON CONFLICT(\"hash\") DO UPDATE SET \"value\"=excluded.\"value\";"
 				);
 			}
 			SQLite::Statement& stmt = setStmt.value();
-			stmt.bind(1, name.data(), name.length());
-			stmt.bind(2, data.data(), data.length());
+			stmt.bind(1, hashStr(key));
+			stmt.bind(2, key.data(), key.length());
+			stmt.bind(3, value.data(), value.length());
 			bool res = stmt.executeStep();
 			assert(res == false);
 
@@ -348,11 +365,11 @@ namespace ez {
 			if (!eraseStmt) {
 				eraseStmt.emplace(
 					db.value(),
-					"DELETE FROM ez_kvstore WHERE \"key\" = ?; SELECT changes();"
+					"DELETE FROM ez_kvstore WHERE \"hash\" = ?; SELECT changes();"
 				);
 			}
 			SQLite::Statement& stmt = eraseStmt.value();
-			stmt.bind(1, name.data(), name.length());
+			stmt.bind(1, hashStr(name));
 			bool res = stmt.executeStep();
 			assert(res == false);
 
