@@ -209,7 +209,7 @@ namespace ez {
 		}
 	}
 
-	bool KVPrivate::getKind(std::string& kind) {
+	bool KVPrivate::getKind(std::string& kind) const {
 		if (!isOpen()) {
 			return false;
 		}

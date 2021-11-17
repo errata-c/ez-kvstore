@@ -16,7 +16,7 @@ namespace ez {
 		bool empty() const noexcept;
 		std::size_t size() const noexcept;
 
-		bool getKind(std::string & kind);
+		bool getKind(std::string & kind) const;
 		bool setKind(std::string_view kind);
 
 		bool inBatch() const;

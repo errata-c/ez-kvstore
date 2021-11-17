@@ -38,6 +38,13 @@ namespace ez {
 		return impl->size();
 	}
 
+	bool KVStore::getKind(std::string& kind) const {
+		return impl->getKind(kind);
+	}
+	bool KVStore::setKind(std::string_view kind) {
+		return impl->setKind(kind);
+	}
+
 	bool KVStore::inBatch() const {
 		return impl->inBatch();
 	}
@@ -57,6 +64,9 @@ namespace ez {
 
 	bool KVStore::get(std::string_view name, std::string& data) const {
 		return impl->get(name, data);
+	}
+	bool KVStore::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
+		return impl->getRaw(name, data, len);
 	}
 	bool KVStore::getStream(std::string_view name, ez::imemstream& stream) const {
 		return impl->getStream(name, stream);
