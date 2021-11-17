@@ -1,0 +1,3 @@
+#pragma once
+
+const char test_dir[] = "@CMAKE_CURRENT_LIST_DIR@";

@@ -21,8 +21,8 @@ namespace ez {
 		return impl->isOpen();
 	}
 
-	bool KVStore::create(const std::filesystem::path& path) {
-		return impl->create(path);
+	bool KVStore::create(const std::filesystem::path& path, bool overwrite) {
+		return impl->create(path, overwrite);
 	}
 	bool KVStore::open(const std::filesystem::path& path, bool readonly) {
 		return impl->open(path, readonly);

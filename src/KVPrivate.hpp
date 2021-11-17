@@ -9,7 +9,7 @@ namespace ez {
 	class KVPrivate {
 	public:
 		bool isOpen() const noexcept;
-		bool create(const std::filesystem::path& path);
+		bool create(const std::filesystem::path& path, bool overwrite);
 		bool open(const std::filesystem::path& path, bool readonly);
 		void close();
 
@@ -17,6 +17,7 @@ namespace ez {
 		std::size_t size() const noexcept;
 
 		bool getKind(std::string & kind);
+		bool setKind(std::string_view kind);
 
 		bool inBatch() const;
 		bool beginBatch();
@@ -38,6 +39,7 @@ namespace ez {
 			setStmt,
 			eraseStmt,
 			countStmt;
-		//SQLite::Statement 
+
+		
 	};
 }

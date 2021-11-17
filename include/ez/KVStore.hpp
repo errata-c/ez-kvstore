@@ -19,7 +19,7 @@ namespace ez {
 
 		bool isOpen() const noexcept;
 
-		bool create(const std::filesystem::path& path);
+		bool create(const std::filesystem::path& path, bool overwrite = false);
 		bool open(const std::filesystem::path & path, bool readonly = false);
 		void close();
 		
