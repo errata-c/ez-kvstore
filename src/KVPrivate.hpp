@@ -27,6 +27,8 @@ namespace ez {
 		bool contains(std::string_view name) const;
 
 		bool get(std::string_view name, std::string& data) const;
+		bool getRaw(std::string_view name, const void*& data, std::size_t& len) const;
+		bool getStream(std::string_view name, ez::imemstream& stream) const;
 		bool set(std::string_view name, std::string_view data);
 		bool erase(std::string_view name);
 	private:

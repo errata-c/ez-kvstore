@@ -58,6 +58,9 @@ namespace ez {
 	bool KVStore::get(std::string_view name, std::string& data) const {
 		return impl->get(name, data);
 	}
+	bool KVStore::getStream(std::string_view name, ez::imemstream& stream) const {
+		return impl->getStream(name, stream);
+	}
 	bool KVStore::set(std::string_view name, std::string_view data) {
 		return impl->set(name, data);
 	}

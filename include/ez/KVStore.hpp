@@ -1,6 +1,7 @@
 #pragma once
 #include <string_view>
 #include <filesystem>
+#include <ez/memstream.hpp>
 
 namespace ez {
 	class KVPrivate;
@@ -33,6 +34,7 @@ namespace ez {
 		bool contains(std::string_view name) const;
 
 		bool get(std::string_view name, std::string & data) const;
+		bool getStream(std::string_view name, ez::imemstream & stream) const;
 		bool set(std::string_view name, std::string_view data);
 		bool erase(std::string_view name);
 	private:

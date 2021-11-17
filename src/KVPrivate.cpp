@@ -314,7 +314,7 @@ namespace ez {
 		}
 	}
 
-	bool KVPrivate::get(std::string_view name, std::string& data) const {
+	bool KVPrivate::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
 		if (db) {
 			if (!getStmt) {
 				getStmt.emplace(
@@ -331,7 +331,8 @@ namespace ez {
 			stmt.bind(1, hashStr(name));
 			if (stmt.executeStep()) {
 				SQLite::Column col = stmt.getColumn(0);
-				data.assign((const char*)col.getBlob(), col.getBytes());
+				data = col.getBlob();
+				len = static_cast<std::size_t>(col.getBytes());
 				
 				return true;
 			}
@@ -343,6 +344,29 @@ namespace ez {
 			return false;
 		}
 	}
+	bool KVPrivate::get(std::string_view name, std::string& data) const {
+		const void* ptr = nullptr;
+		std::size_t len = 0;
+		if (getRaw(name, ptr, len)) {
+			data.assign((const char*)ptr, len);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	bool KVPrivate::getStream(std::string_view name, ez::imemstream& stream) const {
+		const void* ptr = nullptr;
+		std::size_t len = 0;
+		if (getRaw(name, ptr, len)) {
+			stream.reset((const char*)ptr, (const char*)ptr+len);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+
 	bool KVPrivate::set(std::string_view key, std::string_view value) {
 		if (db) {
 			if (!setStmt) {

@@ -38,5 +38,11 @@ TEST_CASE("kvstore") {
 
 	REQUIRE(store.size() == 4);
 	REQUIRE(!store.empty());
+
+	ez::imemstream in;
+	REQUIRE(store.getStream("hello", in));
+	
+	REQUIRE(std::getline(in, value));
+	REQUIRE(value == "world");
 }
 
