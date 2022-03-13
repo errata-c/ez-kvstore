@@ -13,7 +13,7 @@ add_executable(basic_test
 
 	"${CMAKE_CURRENT_BINARY_DIR}/config.hpp" 
 )
-target_link_libraries("basic_test" PRIVATE 
+target_link_libraries(basic_test PRIVATE 
 	ez::kvstore
 	Catch2::Catch2
 	fmt::fmt

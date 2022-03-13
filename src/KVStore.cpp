@@ -54,12 +54,14 @@ namespace ez {
 		impl->close();
 	}
 
-	bool KVStore::empty() const noexcept {
-		return impl->empty();
+
+	std::size_t KVStore::numValues() const noexcept {
+		return impl->numValues();
 	}
-	std::size_t KVStore::size() const noexcept {
-		return impl->size();
+	std::size_t KVStore::numTables() const noexcept {
+		return impl->numTables();
 	}
+
 
 	bool KVStore::getKind(std::string& kind) const {
 		return impl->getKind(kind);
@@ -94,9 +96,14 @@ namespace ez {
 	bool KVStore::getStream(std::string_view name, ez::imemstream& stream) const {
 		return impl->getStream(name, stream);
 	}
+
 	bool KVStore::set(std::string_view name, std::string_view data) {
 		return impl->set(name, data);
 	}
+	bool KVStore::setRaw(std::string_view name, const void* data, std::size_t len) {
+		return set(name, std::string_view((const char*)data, len));
+	}
+
 	bool KVStore::erase(std::string_view name) {
 		return impl->erase(name);
 	}

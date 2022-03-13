@@ -27,10 +27,11 @@ find_package(SQLiteCpp CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 
-# Create main target.
 add_library(${TARGET_NAME} STATIC
 	"src/KVStore.cpp"
 	"src/KVPrivate.cpp"
+	"src/Values.cpp"
+	"src/Tables.cpp"
 )
 
 target_include_directories(${TARGET_NAME} PUBLIC 
@@ -55,6 +56,7 @@ if(${${PROJECT_NAME}_BUILD_TESTS})
 	add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests")
 endif()
 
+# Conditional installation logic, we don't want to do this if this is a subproject.
 if(${${PROJECT_NAME}_TOP_LEVEL})
 	install(
 		DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"

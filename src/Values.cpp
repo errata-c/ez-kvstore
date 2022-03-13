@@ -1,0 +1,170 @@
+#include "KVPrivate.hpp"
+
+#include <cassert>
+#include <iostream>
+#include <fmt/core.h>
+
+namespace ez {
+	std::size_t KVPrivate::numValues() const {
+		if (!db) {
+			return 0;
+		}
+
+		SQLite::Statement stmt(
+			db.value(),
+			fmt::format(
+				"SELECT COUNT(*) FROM \"{}\";",
+				tableID
+			)
+		);
+		bool res = stmt.executeStep();
+		assert(res == true);
+
+		int64_t val = stmt.getColumn(0).getInt64();
+		assert(val >= 0);
+		return static_cast<std::size_t>(val);
+	}
+
+	bool KVPrivate::contains(std::string_view name) const {
+		if (db) {
+			if (!containsStmt) {
+				containsStmt.emplace(
+					db.value(),
+					fmt::format(
+						"SELECT 1 WHERE EXISTS (SELECT * FROM \"{}\" WHERE \"hash\" = ?)",
+						tableID
+					)
+				);
+			}
+			else {
+				containsStmt.value().reset();
+			}
+
+			SQLite::Statement& stmt = containsStmt.value();
+
+			stmt.bind(1, kvhash(name));
+
+			return stmt.executeStep();
+		}
+		else {
+			return false;
+		}
+	}
+
+	bool KVPrivate::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
+		if (db) {
+			if (!getStmt) {
+				getStmt.emplace(
+					db.value(),
+					fmt::format(
+						"SELECT \"value\" FROM \"{}\" WHERE \"hash\" = ?",
+						tableID
+					)
+				);
+			}
+			else {
+				getStmt.value().reset();
+			}
+
+			SQLite::Statement& stmt = getStmt.value();
+
+			stmt.bind(1, kvhash(name));
+			if (stmt.executeStep()) {
+				SQLite::Column col = stmt.getColumn(0);
+				data = col.getBlob();
+				len = static_cast<std::size_t>(col.getBytes());
+
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+		else {
+			return false;
+		}
+	}
+	bool KVPrivate::get(std::string_view name, std::string& data) const {
+		const void* ptr = nullptr;
+		std::size_t len = 0;
+		if (getRaw(name, ptr, len)) {
+			data.assign((const char*)ptr, len);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	bool KVPrivate::getStream(std::string_view name, ez::imemstream& stream) const {
+		const void* ptr = nullptr;
+		std::size_t len = 0;
+		if (getRaw(name, ptr, len)) {
+			stream.reset((const char*)ptr, (const char*)ptr + len);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+
+	bool KVPrivate::set(std::string_view key, std::string_view value) {
+		if (db) {
+			if (!setStmt) {
+				setStmt.emplace(
+					db.value(),
+					fmt::format(
+						"INSERT INTO \"{}\" (\"hash\", \"key\", \"value\") "
+						"VALUES (?, ?, ?) ON CONFLICT(\"hash\") "
+						"DO UPDATE SET \"value\"=excluded.\"value\";",
+						tableID
+					)
+				);
+			}
+			else {
+				setStmt.value().reset();
+			}
+
+			SQLite::Statement& stmt = setStmt.value();
+
+			stmt.bind(1, kvhash(key));
+			stmt.bind(2, key.data(), key.length());
+			stmt.bind(3, value.data(), value.length());
+			bool res = stmt.executeStep();
+			assert(res == false);
+
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+
+
+	bool KVPrivate::erase(std::string_view name) {
+		if (db) {
+			if (!eraseStmt) {
+				eraseStmt.emplace(
+					db.value(),
+					fmt::format(
+						"DELETE FROM \"{}\" WHERE \"hash\" = ?; SELECT changes();",
+						tableID
+					)
+				);
+			}
+			else {
+				eraseStmt.value().reset();
+			}
+
+			SQLite::Statement& stmt = eraseStmt.value();
+
+			stmt.bind(1, kvhash(name));
+			bool res = stmt.executeStep();
+			assert(res);
+
+			return stmt.getColumn(0).getInt() == 1;
+		}
+		else {
+			return false;
+		}
+	}
+}

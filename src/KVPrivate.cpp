@@ -11,6 +11,8 @@ namespace ez {
 	// The id is the first 8 hex values of the sha256 hash of "ez-kvstore", 0xCB4D74FF
 	static constexpr int32_t application_id = 0xCB4D74FF;
 
+	KVPrivate::KVPrivate()
+	{}
 
 	bool KVPrivate::isOpen() const noexcept {
 		return db.has_value();
@@ -46,11 +48,13 @@ namespace ez {
 			return false;
 		}
 
-		// Create the main key-value store table
+		// Create the lookup for the managed tables
 		try {
 			SQLite::Statement stmt{
 				db.value(),
-				"CREATE TABLE ez_kvstore(\"hash\" INTEGER NOT NULL UNIQUE, \"key\" BLOB NOT NULL, \"value\" BLOB NOT NULL, PRIMARY KEY(\"hash\"));"
+				"CREATE TABLE ez_kvstore_tables("
+					"'hash' INTEGER PRIMARY KEY, "
+					"'name' BLOB NOT NULL);"
 			};
 
 			stmt.executeStep();
@@ -83,7 +87,9 @@ namespace ez {
 		try {
 			SQLite::Statement stmt{
 				db.value(),
-				"CREATE TABLE ez_kvstore_meta(\"key\" TEXT NOT NULL UNIQUE, \"value\" BLOB NOT NULL, PRIMARY KEY(\"key\"));"
+				"CREATE TABLE ez_kvstore_meta("
+					"\"key\" TEXT NOT NULL UNIQUE, "
+					"\"value\" BLOB NOT NULL, PRIMARY KEY(\"key\"));"
 			};
 
 			stmt.executeStep();
@@ -94,20 +100,19 @@ namespace ez {
 			throw std::logic_error(err);
 		}
 
-		// Create index for better performance
-		try {
-			SQLite::Statement stmt{
-				db.value(),
-				"CREATE INDEX kvidx ON ez_kvstore(\"hash\");"
-			};
+		// Set the kind value to a default
+		bool result = setKind("ez_kvstore");
+		assert(result);
 
-			stmt.executeStep();
-		}
-		catch (std::exception& e) {
-			std::string err = fmt::format(
-				"ez::KVStore failed to index main the table for an sqlite database with error:\n{}\n", e.what());
-			throw std::logic_error(err);
-		}
+		// Create the first table, name it 'main'
+		result = createTable("main");
+		assert(result);
+
+		// Make it the default table
+		setDefaultTable("main");
+
+		// Indexing is not required!
+		// The primary key is an integer
 
 		// Modify pragmas
 		try {
@@ -232,32 +237,9 @@ namespace ez {
 	}
 
 	bool KVPrivate::empty() const noexcept {
-		return size() == 0;
+		return numValues() == 0;
 	}
-	std::size_t KVPrivate::size() const noexcept {
-		if (db) {
-			if (!countStmt) {
-				countStmt.emplace(
-					db.value(),
-					"SELECT COUNT(*) FROM ez_kvstore;"
-				);
-			}
-			else {
-				countStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = countStmt.value();
-			bool res = stmt.executeStep();
-			assert(res == true);
-
-			int64_t val = stmt.getColumn(0).getInt64();
-			assert(val >= 0);
-			return static_cast<std::size_t>(val);
-		}
-		else {
-			return 0;
-		}
-	}
+	
 
 	bool KVPrivate::inBatch() const {
 		return bool(batch);
@@ -266,6 +248,9 @@ namespace ez {
 		if (!isOpen() || inBatch()) {
 			return false;
 		}
+
+		batch.emplace(db.value());
+
 		return true;
 	}
 	void KVPrivate::commitBatch() {
@@ -277,129 +262,5 @@ namespace ez {
 	}
 	void KVPrivate::cancelBatch() {
 		batch.reset();
-	}
-
-	bool KVPrivate::contains(std::string_view name) const {
-		if (db) {
-			if (!containsStmt) {
-				containsStmt.emplace(
-					db.value(),
-					"SELECT 1 WHERE EXISTS (SELECT * FROM ez_kvstore WHERE \"hash\"=?)"
-				);
-			}
-			else {
-				containsStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = containsStmt.value();
-
-			stmt.bind(1, kvhash(name));
-			return stmt.executeStep();
-		}
-		else {
-			return false;
-		}
-	}
-
-	bool KVPrivate::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
-		if (db) {
-			if (!getStmt) {
-				getStmt.emplace(
-					db.value(),
-					"SELECT \"value\" FROM ez_kvstore WHERE \"hash\"=?"
-				);
-			}
-			else {
-				getStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = getStmt.value();
-
-			stmt.bind(1, kvhash(name));
-			if (stmt.executeStep()) {
-				SQLite::Column col = stmt.getColumn(0);
-				data = col.getBlob();
-				len = static_cast<std::size_t>(col.getBytes());
-				
-				return true;
-			}
-			else {
-				return false;
-			}
-		}
-		else {
-			return false;
-		}
-	}
-	bool KVPrivate::get(std::string_view name, std::string& data) const {
-		const void* ptr = nullptr;
-		std::size_t len = 0;
-		if (getRaw(name, ptr, len)) {
-			data.assign((const char*)ptr, len);
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-	bool KVPrivate::getStream(std::string_view name, ez::imemstream& stream) const {
-		const void* ptr = nullptr;
-		std::size_t len = 0;
-		if (getRaw(name, ptr, len)) {
-			stream.reset((const char*)ptr, (const char*)ptr+len);
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-
-	bool KVPrivate::set(std::string_view key, std::string_view value) {
-		if (db) {
-			if (!setStmt) {
-				setStmt.emplace(
-					db.value(),
-					"INSERT INTO ez_kvstore (\"hash\", \"key\", \"value\") VALUES (?, ?, ?) ON CONFLICT(\"hash\") DO UPDATE SET \"value\"=excluded.\"value\";"
-				);
-			}
-			else {
-				setStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = setStmt.value();
-			stmt.bind(1, kvhash(key));
-			stmt.bind(2, key.data(), key.length());
-			stmt.bind(3, value.data(), value.length());
-			bool res = stmt.executeStep();
-			assert(res == false);
-
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-	bool KVPrivate::erase(std::string_view name) {
-		if (db) {
-			if (!eraseStmt) {
-				eraseStmt.emplace(
-					db.value(),
-					"DELETE FROM ez_kvstore WHERE \"hash\" = ?; SELECT changes();"
-				);
-			}
-			else {
-				eraseStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = eraseStmt.value();
-			stmt.bind(1, kvhash(name));
-			bool res = stmt.executeStep();
-			assert(res == true);
-
-			return stmt.getColumn(0).getInt() == 1;
-		}
-		else {
-			return false;
-		}
 	}
 }

@@ -22,7 +22,7 @@ TEST_CASE("kvstore") {
 	REQUIRE(!store.set("test", value));
 	REQUIRE(!store.erase("test"));
 	REQUIRE(!store.contains("test"));
-	REQUIRE(store.size() == 0);
+	REQUIRE(store.numValues() == 0);
 
 	REQUIRE(store.open(path, true));
 
@@ -36,8 +36,7 @@ TEST_CASE("kvstore") {
 	REQUIRE(store.get("what", value));
 	REQUIRE(value == "fun");
 
-	REQUIRE(store.size() == 4);
-	REQUIRE(!store.empty());
+	REQUIRE(store.numValues() == 4);
 
 	ez::imemstream in;
 	REQUIRE(store.getStream("hello", in));

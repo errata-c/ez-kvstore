@@ -2,6 +2,8 @@
 #include <streambuf>
 
 namespace ez {
+	// Based on the concept from c++ 23
+	// The spanbuf
 	class membuf : public std::streambuf {
 	public:
 		using char_type = char;
@@ -76,6 +78,7 @@ namespace ez {
 		}
 	};
 
+	// based on c++23 concept, ispanstream
 	class imemstream: public std::istream {
 	public:
 		imemstream()
