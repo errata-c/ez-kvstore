@@ -55,7 +55,7 @@ namespace ez {
 		return stmt.executeStep();
 	}
 	bool TableIterator::atEnd() {
-		return stmt.hasRow();
+		return !stmt.hasRow();
 	}
 
 	std::string TableIterator::name() {

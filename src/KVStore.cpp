@@ -223,8 +223,7 @@ namespace ez {
 		assert(iter != nullptr);
 		assert(!iter->atEnd());
 
-		bool result = iter->advance();
-		assert(result);
+		iter->advance();
 
 		return *this;
 	}
@@ -232,8 +231,7 @@ namespace ez {
 		assert(iter != nullptr);
 		assert(!iter->atEnd());
 
-		bool result = iter->advance();
-		assert(result);
+		iter->advance();
 	}
 
 
@@ -286,8 +284,7 @@ namespace ez {
 		assert(iter != nullptr);
 		assert(!iter->atEnd());
 
-		bool res = iter->advance();
-		assert(res);
+		iter->advance();
 
 		return *this;
 	}
@@ -295,7 +292,6 @@ namespace ez {
 		assert(iter != nullptr);
 		assert(!iter->atEnd());
 
-		bool res = iter->advance();
-		assert(res);
+		iter->advance();
 	}
 }

@@ -90,12 +90,35 @@ TEST_CASE("writing") {
 	REQUIRE(store.set("something", "cool"));
 	REQUIRE(store.numValues() == 1);
 
-	auto it = store.begin(), end = store.end();
-	REQUIRE(it != end);
+	{
+		auto it = store.begin(), end = store.end();
+		REQUIRE((it != end));
 
-	auto kv = *it;
-	REQUIRE(kv.key == "something");
+		auto kv = *it;
+		REQUIRE(kv.key == "something");
 
+		++it;
+		REQUIRE((it == end));
+	}
 
+	{
+		auto it = store.beginTables(), end = store.endTables();
+		REQUIRE((it != end));
+
+		auto val = *it;
+		std::string old = val;
+		REQUIRE((val == "main" || val == "secondary"));
+
+		++it;
+		REQUIRE((it != end));
+
+		val = *it;
+		REQUIRE((val == "main" || val == "secondary"));
+		REQUIRE(val != old);
+
+		++it;
+		REQUIRE((it == end));
+	}
+	
 }
 
