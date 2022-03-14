@@ -26,29 +26,28 @@ namespace ez {
 	}
 
 	bool KVPrivate::contains(std::string_view name) const {
-		if (db) {
-			if (!containsStmt) {
-				containsStmt.emplace(
-					db.value(),
-					fmt::format(
-						"SELECT 1 WHERE EXISTS (SELECT * FROM \"{}\" WHERE \"hash\" = ?)",
-						tableID
-					)
-				);
-			}
-			else {
-				containsStmt.value().reset();
-			}
-
-			SQLite::Statement& stmt = containsStmt.value();
-
-			stmt.bind(1, kvhash(name));
-
-			return stmt.executeStep();
-		}
-		else {
+		if (!db) {
 			return false;
 		}
+
+		if (!containsStmt) {
+			containsStmt.emplace(
+				db.value(),
+				fmt::format(
+					"SELECT 1 WHERE EXISTS (SELECT * FROM \"{}\" WHERE \"hash\" = ?);",
+					tableID
+				)
+			);
+		}
+		else {
+			containsStmt.value().reset();
+		}
+
+		SQLite::Statement& stmt = containsStmt.value();
+
+		stmt.bind(1, kvhash(name));
+
+		return stmt.executeStep();
 	}
 
 	bool KVPrivate::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
@@ -84,59 +83,36 @@ namespace ez {
 			return false;
 		}
 	}
-	bool KVPrivate::get(std::string_view name, std::string& data) const {
-		const void* ptr = nullptr;
-		std::size_t len = 0;
-		if (getRaw(name, ptr, len)) {
-			data.assign((const char*)ptr, len);
-			return true;
-		}
-		else {
+
+	bool KVPrivate::setRaw(std::string_view key, const void* data, std::size_t len) {
+		if (!db) {
 			return false;
 		}
-	}
-	bool KVPrivate::getStream(std::string_view name, ez::imemstream& stream) const {
-		const void* ptr = nullptr;
-		std::size_t len = 0;
-		if (getRaw(name, ptr, len)) {
-			stream.reset((const char*)ptr, (const char*)ptr + len);
-			return true;
+		
+		if (!setStmt) {
+			setStmt.emplace(
+				db.value(),
+				fmt::format(
+					"INSERT INTO \"{}\" (\"hash\", \"key\", \"value\") "
+					"VALUES (?, ?, ?) ON CONFLICT(\"hash\") "
+					"DO UPDATE SET \"value\"=excluded.\"value\";",
+					tableID
+				)
+			);
 		}
 		else {
-			return false;
+			setStmt.value().reset();
 		}
-	}
 
-	bool KVPrivate::set(std::string_view key, std::string_view value) {
-		if (db) {
-			if (!setStmt) {
-				setStmt.emplace(
-					db.value(),
-					fmt::format(
-						"INSERT INTO \"{}\" (\"hash\", \"key\", \"value\") "
-						"VALUES (?, ?, ?) ON CONFLICT(\"hash\") "
-						"DO UPDATE SET \"value\"=excluded.\"value\";",
-						tableID
-					)
-				);
-			}
-			else {
-				setStmt.value().reset();
-			}
+		SQLite::Statement& stmt = setStmt.value();
 
-			SQLite::Statement& stmt = setStmt.value();
+		stmt.bind(1, kvhash(key));
+		stmt.bind(2, key.data(), key.length());
+		stmt.bind(3, data, len);
+		bool res = stmt.executeStep();
+		assert(res == false);
 
-			stmt.bind(1, kvhash(key));
-			stmt.bind(2, key.data(), key.length());
-			stmt.bind(3, value.data(), value.length());
-			bool res = stmt.executeStep();
-			assert(res == false);
-
-			return true;
-		}
-		else {
-			return false;
-		}
+		return true;
 	}
 
 

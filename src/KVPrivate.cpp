@@ -49,42 +49,33 @@ namespace ez {
 		}
 
 		// Create the lookup for the managed tables
-		try {
+		{
 			SQLite::Statement stmt{
 				db.value(),
 				"CREATE TABLE ez_kvstore_tables("
-					"'hash' INTEGER PRIMARY KEY, "
-					"'name' BLOB NOT NULL);"
+					"\"hash\" INTEGER PRIMARY KEY, "
+					"\"name\" BLOB NOT NULL);"
 			};
 
 			stmt.executeStep();
 		}
-		catch (std::exception& e) {
-			std::string err = fmt::format(
-				"ez::KVStore failed to create the main table for an sqlite database with error:\n{}\n", e.what());
-			throw std::logic_error(err);
-		}
 
 		// Set the application_id pragma, so we can identify the database correctly when opening.
-		
-		try {
+		{
 			// For some reason this works, while the binding does not...
-			std::string query = fmt::format("PRAGMA main.application_id = {};", application_id);
 			SQLite::Statement stmt{
 				db.value(),
-				query
+				fmt::format(
+					"PRAGMA main.application_id = {};", 
+					application_id
+				)
 			};
 			
 			stmt.executeStep();
 		}
-		catch (std::exception &e) {
-			std::string err = fmt::format(
-				"ez::KVStore failed to set the application_id for an sqlite database with error:\n{}\n", e.what());
-			throw std::logic_error(err);
-		}
 
 		// Create the meta information table
-		try {
+		{
 			SQLite::Statement stmt{
 				db.value(),
 				"CREATE TABLE ez_kvstore_meta("
@@ -93,11 +84,6 @@ namespace ez {
 			};
 
 			stmt.executeStep();
-		}
-		catch (std::exception& e) {
-			std::string err = fmt::format(
-				"ez::KVStore failed to create the meta table for an sqlite database with error:\n{}\n", e.what());
-			throw std::logic_error(err);
 		}
 
 		// Set the kind value to a default
@@ -109,7 +95,8 @@ namespace ez {
 		assert(result);
 
 		// Make it the default table
-		setDefaultTable("main");
+		result = setDefaultTable("main");
+		assert(result);
 
 		// Indexing is not required!
 		// The primary key is an integer
@@ -138,45 +125,45 @@ namespace ez {
 		namespace fs = std::filesystem;
 		fs::file_status status = fs::status(path);
 
-		if (fs::exists(status)) {
-			if (fs::is_regular_file(status)) {
-				int flags = SQLite::OPEN_READWRITE;
-				if (readonly) {
-					flags = SQLite::OPEN_READONLY;
-				}
-				db.emplace(path.u8string(), flags);
-
-				int32_t app_id = 0;
-				// Verify that the database is actually something we can use.
-				try {
-					SQLite::Statement stmt{
-						db.value(),
-						"PRAGMA main.application_id;"
-					};
-
-					stmt.executeStep();
-					app_id = stmt.getColumn(0);
-				}
-				catch (std::exception & e) {
-					std::string err = fmt::format(
-						"ez::KVStore failed to query the application_id for the database, with error:\n{}\n", e.what());
-					throw std::logic_error(err);
-				}
-
-				if (app_id != application_id) {
-					db.reset();
-					return false;
-				}
-
-				return true;
-			}
-			else {
-				return false;
-			}
-		}
-		else {
+		if (!fs::exists(status) || !fs::is_regular_file(status)) {
 			return false;
 		}
+
+		int flags = SQLite::OPEN_READWRITE;
+		if (readonly) {
+			flags = SQLite::OPEN_READONLY;
+		}
+		db.emplace(path.u8string(), flags);
+
+		int32_t app_id = 0;
+		// Verify that the database is actually something we can use.
+		{
+			SQLite::Statement stmt{
+				db.value(),
+				"PRAGMA main.application_id;"
+			};
+			stmt.executeStep();
+			app_id = stmt.getColumn(0);
+		}
+
+		if (app_id != application_id) {
+			db.reset();
+			return false;
+		}
+
+		// open the default table
+		std::string table;
+		if (!getDefaultTable(table)) {
+			db.reset();
+			return false;
+		}
+
+		if (!setTable(table)) {
+			db.reset();
+			return false;
+		}
+
+		return true;
 	}
 	void KVPrivate::close() {
 		if (isOpen()) {

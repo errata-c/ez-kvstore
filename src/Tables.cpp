@@ -22,10 +22,10 @@ namespace ez {
 		assert(res);
 
 		int64_t count = stmt.getColumn(0).getInt64();
-		assert(count >= 1);
+		assert(count > 0);
 
 		// Subtract the meta table from the count
-		return static_cast<std::size_t>(count) - 1;
+		return static_cast<std::size_t>(count);
 	}
 	bool KVPrivate::containsTable(std::string_view name) const {
 		if (!db) {
@@ -34,7 +34,7 @@ namespace ez {
 
 		SQLite::Statement stmt(
 			db.value(),
-			"SELECT COUNT(*) FROM ez_kvstore_tables WHERE 'hash' = ?;"
+			"SELECT COUNT(*) FROM ez_kvstore_tables WHERE \"hash\" = ?;"
 		);
 
 		int64_t hv = kvhash(name);

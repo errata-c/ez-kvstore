@@ -6,9 +6,9 @@
 
 namespace fs = std::filesystem;
 
-TEST_CASE("kvstore") {
+TEST_CASE("reading") {
 	fs::path path = test_dir;
-	path /= "test.db3";
+	path /= "read.db3";
 
 	ez::KVStore store;
 	
@@ -36,7 +36,7 @@ TEST_CASE("kvstore") {
 	REQUIRE(store.get("what", value));
 	REQUIRE(value == "fun");
 
-	REQUIRE(store.numValues() == 4);
+	REQUIRE(store.numValues() == 2);
 
 	ez::imemstream in;
 	REQUIRE(store.getStream("hello", in));
@@ -45,5 +45,57 @@ TEST_CASE("kvstore") {
 	REQUIRE(value == "world");
 
 	in.reset();
+}
+
+TEST_CASE("writing") {
+	fs::path path = test_dir;
+	path /= "write.db3";
+
+	ez::KVStore store;
+
+	REQUIRE(!store.isOpen());
+	REQUIRE(!store.inBatch());
+
+	REQUIRE(!store.beginBatch());
+
+	REQUIRE(store.create(path, true));
+
+	REQUIRE(store.numTables() == 1);
+	REQUIRE(store.numValues() == 0);
+
+	// Make sure the default table is present
+	std::string table;
+	REQUIRE(store.getTable(table));
+
+	REQUIRE(table == "main");
+
+	REQUIRE(store.containsTable(table));
+
+	REQUIRE(store.set("hello", "world"));
+	REQUIRE(store.numValues() == 1);
+
+	REQUIRE(store.set("what", "fun"));
+	REQUIRE(store.numValues() == 2);
+
+	REQUIRE(store.contains("hello"));
+	REQUIRE(store.contains("what"));
+
+	REQUIRE(store.createTable("secondary"));
+	REQUIRE(store.getTable(table));
+	REQUIRE(table == "secondary");
+	REQUIRE(store.containsTable(table));
+
+	REQUIRE(store.numTables() == 2);
+	REQUIRE(store.numValues() == 0);
+	REQUIRE(store.set("something", "cool"));
+	REQUIRE(store.numValues() == 1);
+
+	auto it = store.begin(), end = store.end();
+	REQUIRE(it != end);
+
+	auto kv = *it;
+	REQUIRE(kv.key == "something");
+
+
 }
 

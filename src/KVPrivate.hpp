@@ -4,8 +4,31 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <optional>
+#include <iterator>
 
 namespace ez {
+	struct ElementIterator {
+		ElementIterator(SQLite::Database& db, std::string_view tableID);
+
+		bool advance();
+		bool atEnd();
+
+		std::string key();
+		std::string value();
+
+		SQLite::Statement stmt;
+	};
+	struct TableIterator {
+		TableIterator(SQLite::Database& db);
+
+		bool advance();
+		bool atEnd();
+
+		std::string name();
+
+		SQLite::Statement stmt;
+	};
+
 	class KVPrivate {
 	public:
 		KVPrivate();
@@ -30,20 +53,22 @@ namespace ez {
 		bool getDefaultTable(std::string& name) const;
 		bool eraseTable(std::string_view name);
 
+
 		bool inBatch() const;
 		bool beginBatch();
 		void commitBatch();
 		void cancelBatch();
 
+
 		bool contains(std::string_view name) const;
-
-		bool get(std::string_view name, std::string& data) const;
+		
 		bool getRaw(std::string_view name, const void*& data, std::size_t& len) const;
-		bool getStream(std::string_view name, ez::imemstream& stream) const;
-
-		bool set(std::string_view name, std::string_view data);
-
+		bool setRaw(std::string_view name, const void* data, std::size_t len);
 		bool erase(std::string_view name);
+
+
+		ElementIterator* elementIterator();
+		TableIterator* tableIterator();
 	private:
 		// No choice here, if I want to create the statements via lazy init, I need mutable.
 		// Though the question remains, do I need to cache each of these statements?

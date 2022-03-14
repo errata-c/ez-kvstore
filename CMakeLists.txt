@@ -32,6 +32,7 @@ add_library(${TARGET_NAME} STATIC
 	"src/KVPrivate.cpp"
 	"src/Values.cpp"
 	"src/Tables.cpp"
+	"src/Iterator.cpp"
 )
 
 target_include_directories(${TARGET_NAME} PUBLIC 
