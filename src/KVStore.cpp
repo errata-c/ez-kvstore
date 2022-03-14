@@ -106,6 +106,9 @@ namespace ez {
 	bool KVStore::eraseTable(std::string_view name) {
 		return impl->eraseTable(name);
 	}
+	bool KVStore::renameTable(std::string_view old, std::string_view name) {
+		return impl->renameTable(old, name);
+	}
 
 
 

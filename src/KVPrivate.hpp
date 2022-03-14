@@ -52,6 +52,7 @@ namespace ez {
 		bool setDefaultTable(std::string_view name);
 		bool getDefaultTable(std::string& name) const;
 		bool eraseTable(std::string_view name);
+		bool renameTable(std::string_view old, std::string_view name);
 
 
 		bool inBatch() const;

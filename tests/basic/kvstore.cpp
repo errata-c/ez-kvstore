@@ -120,5 +120,12 @@ TEST_CASE("writing") {
 		REQUIRE((it == end));
 	}
 	
+	REQUIRE(store.renameTable("secondary", "testing"));
+
+	REQUIRE(!store.containsTable("secondary"));
+	REQUIRE(store.containsTable("testing"));
+
+	REQUIRE(store.numTables() == 2);
+	REQUIRE(store.numValues() == 1);
 }
 

@@ -188,4 +188,87 @@ namespace ez {
 
 		return true;
 	}
+	bool KVPrivate::renameTable(std::string_view old, std::string_view name) {
+		if (!db) {
+			return false;
+		}
+
+		int64_t oldhv = kvhash(old);
+		int64_t namehv = kvhash(name);
+
+		{
+			SQLite::Statement stmt(
+				db.value(),
+				"SELECT \"hash\" FROM ez_kvstore_tables WHERE \"hash\" = ? OR \"hash\" = ?;"
+			);
+
+			stmt.bind(1, oldhv);
+			stmt.bind(2, namehv);
+
+			int count = 0;
+			int64_t val[2];
+			while (stmt.executeStep()) {
+				val[count] = stmt.getColumn(0).getInt64();
+				++count;
+			}
+			
+			// If the old table doesn't exist, then return false
+			// If the new table exists, then return false
+			bool found = false;
+			for (int i = 0; i < count; ++i) {
+				if (val[i] == oldhv) {
+					found = true;
+				}
+				if (val[i] == namehv) {
+					return false;
+				}
+			}
+			if (!found) {
+				return false;
+			}
+		}
+
+		std::string nid = CreateTableID(name);
+
+		{
+			SQLite::Statement stmt(
+				db.value(),
+				fmt::format(
+					"ALTER TABLE \"{}\" RENAME TO \"{}\";",
+					CreateTableID(old),
+					nid
+				)
+			);
+			stmt.exec();
+		}
+
+		{
+			SQLite::Statement stmt(
+				db.value(),
+				"DELETE FROM ez_kvstore_tables WHERE \"hash\" = ?;"
+			);
+
+			stmt.bind(1, oldhv);
+			stmt.executeStep();
+		}
+
+		{
+			SQLite::Statement stmt(
+				db.value(),
+				"INSERT INTO ez_kvstore_tables(\"hash\", \"name\") VALUES (?, ?);"
+			);
+
+			stmt.bind(1, namehv);
+			stmt.bind(2, name.data(), name.length());
+			stmt.executeStep();
+		}
+
+		// Make sure the table is updated if needed.
+		if (old == currentTable) {
+			bool err = setTable(name);
+			assert(err);
+		}
+
+		return true;
+	}
 }

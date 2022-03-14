@@ -67,6 +67,7 @@ namespace ez {
 		bool setDefaultTable(std::string_view name);
 		bool getDefaultTable(std::string& name) const;
 		bool eraseTable(std::string_view name);
+		bool renameTable(std::string_view old, std::string_view name);
 
 
 		// Returns true if the current table contains a value with the key.
