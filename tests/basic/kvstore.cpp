@@ -1,4 +1,4 @@
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "config.hpp"
 
@@ -126,6 +126,18 @@ TEST_CASE("writing") {
 	REQUIRE(store.containsTable("testing"));
 
 	REQUIRE(store.numTables() == 2);
+	REQUIRE(store.numValues() == 1);
+
+	store.clear();
+
+	REQUIRE(store.numValues() == 0);
+
+	REQUIRE(store.set("test", "something"));
+
+	REQUIRE(store.contains("test"));
+	REQUIRE(store.rename("test", "got"));
+	REQUIRE(store.contains("got"));
+	REQUIRE(!store.contains("test"));
 	REQUIRE(store.numValues() == 1);
 }
 

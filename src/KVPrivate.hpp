@@ -66,7 +66,8 @@ namespace ez {
 		bool getRaw(std::string_view name, const void*& data, std::size_t& len) const;
 		bool setRaw(std::string_view name, const void* data, std::size_t len);
 		bool erase(std::string_view name);
-
+		bool rename(std::string_view old, std::string_view name);
+		void clear();
 
 		ElementIterator* elementIterator();
 		TableIterator* tableIterator();

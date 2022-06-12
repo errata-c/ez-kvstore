@@ -157,7 +157,12 @@ namespace ez {
 	bool KVStore::erase(std::string_view name) {
 		return impl->erase(name);
 	}
-
+	bool KVStore::rename(std::string_view old, std::string_view name) {
+		return impl->rename(old, name);
+	}
+	void KVStore::clear() {
+		impl->clear();
+	}
 
 
 	using const_iterator = KVStore::const_iterator;

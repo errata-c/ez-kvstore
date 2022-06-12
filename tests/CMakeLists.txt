@@ -7,7 +7,6 @@ configure_file("config.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/config.hpp"
 )
 
 add_executable(basic_test 
-	"basic/main.cpp"
 	"basic/streambuf.cpp"
 	"basic/kvstore.cpp"
 
@@ -15,7 +14,7 @@ add_executable(basic_test
 )
 target_link_libraries(basic_test PRIVATE 
 	ez::kvstore
-	Catch2::Catch2
+	Catch2::Catch2WithMain
 	fmt::fmt
 )
 target_include_directories(basic_test PRIVATE

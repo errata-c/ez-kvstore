@@ -122,7 +122,7 @@ namespace ez {
 				eraseStmt.emplace(
 					db.value(),
 					fmt::format(
-						"DELETE FROM \"{}\" WHERE \"hash\" = ?; SELECT changes();",
+						"DELETE FROM \"{}\" WHERE \"hash\" = ?;",
 						tableID
 					)
 				);
@@ -134,13 +134,49 @@ namespace ez {
 			SQLite::Statement& stmt = eraseStmt.value();
 
 			stmt.bind(1, kvhash(name));
-			bool res = stmt.executeStep();
-			assert(res);
 
-			return stmt.getColumn(0).getInt() == 1;
+			return stmt.exec() == 1;
 		}
 		else {
 			return false;
 		}
+	}
+
+	void KVPrivate::clear() {
+		if (!db) {
+			return;
+		}
+
+		SQLite::Statement stmt(
+			db.value(),
+			fmt::format(
+				"DELETE FROM \"{}\";",
+				tableID
+			)
+		);
+		stmt.exec();
+	}
+
+	bool KVPrivate::rename(std::string_view old, std::string_view name) {
+		if (!db || contains(name)) {
+			return false;
+		}
+
+		SQLite::Statement stmt(
+			db.value(),
+			fmt::format(
+				"UPDATE \"{}\" SET \"hash\" = ?, \"key\" = ? WHERE \"hash\" = ?;",
+				tableID
+			)
+		);
+
+		int64_t oldhv = kvhash(old);
+		int64_t namehv = kvhash(name);
+
+		stmt.bind(1, namehv);
+		stmt.bind(2, (const void*)name.data(), name.length());
+		stmt.bind(3, oldhv);
+
+		return stmt.exec() == 1;
 	}
 }

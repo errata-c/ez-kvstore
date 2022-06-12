@@ -85,6 +85,10 @@ namespace ez {
 
 		bool erase(std::string_view name);
 
+		bool rename(std::string_view old, std::string_view name);
+
+		void clear();
+
 		const_iterator begin() const;
 		const_iterator end() const;
 
