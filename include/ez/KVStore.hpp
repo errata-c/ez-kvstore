@@ -3,29 +3,37 @@
 #include <filesystem>
 #include <cinttypes>
 #include <iterator>
+#include <vector>
+#include <unordered_map>
 #include <ez/memstream.hpp>
 
+#include <SQLiteCpp/Database.h>
+#include <SQLiteCpp/SQLiteCpp.h>
+
+#include <optional>
+#include <ez/intern/KVEntry.hpp>
+#include <ez/intern/KVIterator.hpp>
+#include <ez/intern/KVGenerators.hpp>
+
 namespace ez {
-	int64_t kvhash(const char* data, std::size_t len);
-	int64_t kvhash(std::string_view data);
-
-	class KVPrivate;
-	struct ElementIterator;
-	struct TableIterator;
-
+	/*
+	* Simple key-value file format. Built on top of sqlite3.
+	* Only has a single table, for simplicity.
+	*/
 	class KVStore {
 	public:
-		struct const_iterator;
-		struct const_table_iterator;
+		using const_iterator = KVIterator<KVEntryViewGenerator, KVEntryView>;
+		using iterator = const_iterator;
 
 		KVStore();
-		~KVStore();
+
+		~KVStore() = default;
+		KVStore(KVStore&&) noexcept = default;
+		KVStore& operator=(KVStore&&) noexcept = default;
 
 		//KVStore(const KVStore &);
-		KVStore(KVStore&&) noexcept;
-
 		//KVStore& operator=(const KVStore&);
-		KVStore& operator=(KVStore&&) noexcept;
+		
 		void swap(KVStore& other) noexcept;
 
 		bool isOpen() const noexcept;
@@ -34,41 +42,15 @@ namespace ez {
 		bool open(const std::filesystem::path & path, bool readonly = false);
 		void close();
 		
-		
 		// Return the number of values in the current table.
-		std::size_t numValues() const noexcept;
-		// Return the number of tables in the current database.
-		std::size_t numTables() const noexcept;
-
+		std::size_t numValues() const;
+		std::size_t size() const;
+		bool empty() const;
 
 		// Return the string identifying the kind of key store.
-		bool getKind(std::string& kind) const;
+		std::string getKind() const;
 		// Set the string to identifiy the kind of key store.
-		bool setKind(std::string_view kind);
-
-
-		// Returns true when currently in a batch operation.
-		bool inBatch() const;
-
-		// Attempt to start a batch of writes to the key store.
-		bool beginBatch();
-
-		// Commit the batch of writes to the key store.
-		void commitBatch();
-
-		// Cancel a batch of writes to the key store, and rollback the changes.
-		void cancelBatch();
-
-
-		bool containsTable(std::string_view name) const;
-		bool getTable(std::string& name) const;
-		bool createTable(std::string_view name);
-		bool setTable(std::string_view name);
-		bool setDefaultTable(std::string_view name);
-		bool getDefaultTable(std::string& name) const;
-		bool eraseTable(std::string_view name);
-		bool renameTable(std::string_view old, std::string_view name);
-
+		void setKind(std::string_view kind);
 
 		// Returns true if the current table contains a value with the key.
 		bool contains(std::string_view name) const;
@@ -89,64 +71,31 @@ namespace ez {
 
 		void clear();
 
+		bool inBatch() const;
+		bool beginBatch();
+		void commitBatch();
+		void cancelBatch();
+
 		const_iterator begin() const;
 		const_iterator end() const;
 
-		const_table_iterator beginTables() const;
-		const_table_iterator endTables() const;
+		std::vector<KVEntry> getEntries() const;
+		std::unordered_map<std::string, std::string> getMap() const;
 	private:
-		KVPrivate* impl;
+		void resetStmts();
+		void createTable();
 
-
-	public:
-		struct const_iterator {
-			using iterator_category = std::input_iterator_tag;
-			struct value_type {
-				std::string key;
-				std::string value;
-			};
-			using reference = value_type;
-			using pointer = value_type;
-
-			const_iterator();
-			const_iterator(ElementIterator*);
-			const_iterator(const_iterator&&) noexcept;
-			const_iterator& operator=(const_iterator&&) noexcept;
-			~const_iterator();
-
-			bool operator==(const const_iterator& it) const;
-			bool operator!=(const const_iterator& it) const;
-
-			pointer operator->();
-			reference operator*();
-
-			const_iterator& operator++();
-			void operator++(int);
-
-			ElementIterator* iter;
+		struct Data {
+			// Mutable is necessary for lazy initialization.
+			mutable std::optional<SQLite::Database> db;
+			mutable std::optional<SQLite::Transaction> batch;
+			mutable std::optional<SQLite::Statement>
+				containsStmt,
+				getStmt,
+				setStmt,
+				eraseStmt,
+				countStmt;
 		};
-		struct const_table_iterator {
-			using iterator_category = std::input_iterator_tag;
-			using value_type = std::string;
-			using reference = value_type;
-			using pointer = value_type;
-
-			const_table_iterator();
-			const_table_iterator(const_table_iterator&&) noexcept;
-			const_table_iterator& operator=(const_table_iterator&&) noexcept;
-			const_table_iterator(TableIterator*);
-			~const_table_iterator();
-
-			bool operator==(const const_table_iterator& it) const;
-			bool operator!=(const const_table_iterator& it) const;
-
-			pointer operator->();
-			reference operator*();
-
-			const_table_iterator& operator++();
-			void operator++(int);
-
-			TableIterator* iter;
-		};
+		mutable std::unique_ptr<Data> data;
 	};
 }

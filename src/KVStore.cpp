@@ -1,120 +1,224 @@
 #include <ez/KVStore.hpp>
-#include "KVPrivate.hpp"
 
-#include "xxhash.h"
+#include <iostream>
+#include <algorithm>
+#include <fmt/core.h>
+#include <fmt/format.h>
+
+#include "hashing.hpp"
 
 namespace ez {
-	int64_t kvhash(const char* data, std::size_t len) {
-		union {
-			int64_t ival;
-			uint64_t uval;
-		} convert;
-
-		convert.uval = XXH3_64bits(data, len);
-		return convert.ival;
-	}
-	int64_t kvhash(std::string_view data) {
-		return kvhash(data.data(), data.length());
-	}
+	// The id is the first 8 hex values of the sha256 hash of "ez-kvstore", 0xCB4D74FF
+	static constexpr int32_t application_id = 0xCB4D74FF;
 
 	KVStore::KVStore()
-		: impl(new KVPrivate{})
+		: data(new Data())
 	{}
-	KVStore::~KVStore()
-	{
-		delete impl;
-		impl = nullptr;
-	}
 
-	KVStore::KVStore(KVStore&& other) noexcept
-		: impl(other.impl)
-	{
-		other.impl = nullptr;
-	}
-	KVStore& KVStore::operator=(KVStore&& other) noexcept {
-		KVStore tmp{ std::move(other) };
-		swap(tmp);
-		return *this;
-	}
 	void KVStore::swap(KVStore& other) noexcept {
-		std::swap(impl, other.impl);
+		std::swap(data, other.data);
 	}
 
 	bool KVStore::isOpen() const noexcept {
-		return impl->isOpen();
+		return data->db.has_value();
 	}
 
 	bool KVStore::create(const std::filesystem::path& path, bool overwrite) {
-		return impl->create(path, overwrite);
+		if (isOpen()) {
+			return false;
+		}
+		namespace fs = std::filesystem;
+		fs::file_status status = fs::status(path);
+		if (fs::exists(status)) {
+			if (!overwrite) {
+				return false;
+			}
+
+			if (fs::is_regular_file(status)) {
+				if (!fs::remove(path)) {
+					return false;
+				}
+			}
+			else {
+				return false;
+			}
+		}
+
+		// Create the database itself
+		try {
+			data->db.emplace(path.u8string(), SQLite::OPEN_CREATE | SQLite::OPEN_READWRITE);
+		}
+		catch (std::exception& e) {
+			std::cerr << "Failed to create a sqlite database with error:\n";
+			std::cerr << e.what();
+			return false;
+		}
+
+		// Set the application_id pragma, so we can identify the database correctly when opening.
+		{
+			// For some reason this works, while the binding does not...
+			SQLite::Statement stmt{
+				data->db.value(),
+				fmt::format(
+					"PRAGMA main.application_id = {};",
+					application_id
+				)
+			};
+
+			stmt.executeStep();
+		}
+
+		// Create the meta information table
+		{
+			SQLite::Statement stmt{
+				data->db.value(),
+				"CREATE TABLE ez_kvstore_meta("
+					"\"key\" TEXT NOT NULL UNIQUE, "
+					"\"value\" BLOB NOT NULL, PRIMARY KEY(\"key\"));"
+			};
+
+			stmt.executeStep();
+		}
+
+		// Set the kind value to a default
+		setKind("ez_kvstore");
+		createTable();
+
+		// Indexing is not required!
+		// The primary key is an integer
+
+		// Modify pragmas
+		try {
+			SQLite::Statement stmt{
+				data->db.value(),
+				"PRAGMA main.synchronous = 1;"
+			};
+
+			stmt.executeStep();
+		}
+		catch (std::exception& e) {
+			std::string err = fmt::format(
+				"ez::KVStore failed to set main.synchronous with error:\n{}\n", e.what());
+			throw std::logic_error(err);
+		}
+
+		return true;
 	}
 	bool KVStore::open(const std::filesystem::path& path, bool readonly) {
-		return impl->open(path, readonly);
+		if (isOpen()) {
+			return false;
+		}
+		namespace fs = std::filesystem;
+		fs::file_status status = fs::status(path);
+
+		if (!fs::exists(status) || !fs::is_regular_file(status)) {
+			return false;
+		}
+
+		int flags = SQLite::OPEN_READWRITE;
+		if (readonly) {
+			flags = SQLite::OPEN_READONLY;
+		}
+		data->db.emplace(path.u8string(), flags);
+
+		int32_t app_id = 0;
+		// Verify that the database is actually something we can use.
+		{
+			SQLite::Statement stmt{
+				data->db.value(),
+				"PRAGMA main.application_id;"
+			};
+			stmt.executeStep();
+			app_id = stmt.getColumn(0);
+		}
+
+		if (app_id != application_id) {
+			data->db.reset();
+			return false;
+		}
+
+		return true;
 	}
 	void KVStore::close() {
-		impl->close();
+		if (isOpen()) {
+			data->batch.reset();
+
+			// Maybe run PRAGMA optimize?
+			/*
+			{
+				SQLite::Statement stmt{
+					db.value(),
+					"PRAGMA optimize;"
+				};
+				stmt.executeStep();
+			}
+			/**/
+
+			resetStmts();
+			data->db.reset();
+		}
 	}
 
-
-	std::size_t KVStore::numValues() const noexcept {
-		return impl->numValues();
+	
+	std::size_t KVStore::size() const {
+		return numValues();
 	}
-	std::size_t KVStore::numTables() const noexcept {
-		return impl->numTables();
+	bool KVStore::empty() const {
+		return size() == 0;
 	}
 
+	std::string KVStore::getKind() const {
+		assert(isOpen());
 
-	bool KVStore::getKind(std::string& kind) const {
-		return impl->getKind(kind);
+		SQLite::Statement stmt{
+			data->db.value(),
+			"SELECT \"value\" FROM ez_kvstore_meta WHERE \"key\" = \"kind\";"
+		};
+
+		bool res = stmt.executeStep();
+		assert(res);
+
+		std::string kind;
+		SQLite::Column col = stmt.getColumn(0);
+		kind.assign((const char*)col.getBlob(), col.getBytes());
+		return kind;
 	}
-	bool KVStore::setKind(std::string_view kind) {
-		return impl->setKind(kind);
+	void KVStore::setKind(std::string_view kind) {
+		assert(isOpen());
+
+		SQLite::Statement stmt{
+			data->db.value(),
+			"INSERT INTO ez_kvstore_meta(\"key\", \"value\") VALUES (\"kind\", ?) ON CONFLICT(\"key\") DO UPDATE SET \"value\"=excluded.\"value\";"
+		};
+		stmt.bind(1, kind.data(), kind.length());
+
+		stmt.executeStep();
 	}
 
 	bool KVStore::inBatch() const {
-		return impl->inBatch();
+		return bool(data->batch);
 	}
 	bool KVStore::beginBatch() {
-		return impl->beginBatch();
+		if (!isOpen() || inBatch()) {
+			return false;
+		}
+
+		data->batch.emplace(data->db.value());
+
+		return true;
 	}
 	void KVStore::commitBatch() {
-		impl->commitBatch();
+		if (!inBatch()) {
+			throw std::logic_error("Attempt to commit a batch when not in a batch!");
+		}
+		data->batch.value().commit();
+		data->batch.reset();
 	}
 	void KVStore::cancelBatch() {
-		impl->cancelBatch();
+		data->batch.reset();
 	}
 
 
-
-	bool KVStore::containsTable(std::string_view name) const {
-		return impl->containsTable(name);
-	}
-	bool KVStore::getTable(std::string& name) const {
-		return impl->getTable(name);
-	}
-	bool KVStore::createTable(std::string_view name) {
-		return impl->createTable(name);
-	}
-	bool KVStore::setTable(std::string_view name) {
-		return impl->setTable(name);
-	}
-	bool KVStore::setDefaultTable(std::string_view name) {
-		return impl->setDefaultTable(name);
-	}
-	bool KVStore::getDefaultTable(std::string& name) const {
-		return impl->getDefaultTable(name);
-	}
-	bool KVStore::eraseTable(std::string_view name) {
-		return impl->eraseTable(name);
-	}
-	bool KVStore::renameTable(std::string_view old, std::string_view name) {
-		return impl->renameTable(old, name);
-	}
-
-
-
-	bool KVStore::contains(std::string_view name) const {
-		return impl->contains(name);
-	}
 
 	bool KVStore::get(std::string_view name, std::string& data) const {
 		const void* ptr;
@@ -134,9 +238,6 @@ namespace ez {
 		}
 		return false;
 	}
-	bool KVStore::getRaw(std::string_view name, const void*& data, std::size_t& len) const {
-		return impl->getRaw(name, data, len);
-	}
 	bool KVStore::getStream(std::string_view name, ez::imemstream& stream) const {
 		const void* ptr;
 		std::size_t len;
@@ -150,156 +251,55 @@ namespace ez {
 	bool KVStore::set(std::string_view name, std::string_view data) {
 		return setRaw(name, (const void*)data.data(), data.length());
 	}
-	bool KVStore::setRaw(std::string_view name, const void* data, std::size_t len) {
-		return impl->setRaw(name, data, len);
-	}
-
-	bool KVStore::erase(std::string_view name) {
-		return impl->erase(name);
-	}
-	bool KVStore::rename(std::string_view old, std::string_view name) {
-		return impl->rename(old, name);
-	}
-	void KVStore::clear() {
-		impl->clear();
-	}
-
 
 	using const_iterator = KVStore::const_iterator;
-	using const_table_iterator = KVStore::const_table_iterator;
-
-
 	const_iterator KVStore::begin() const {
-		return impl->elementIterator();
+		return const_iterator(KVEntryViewGenerator(data->db.value(), "main"));
 	}
 	const_iterator KVStore::end() const {
-		return {};
+		return const_iterator();
 	}
 
-	const_table_iterator KVStore::beginTables() const {
-		return impl->tableIterator();
-	}
-	const_table_iterator KVStore::endTables() const {
-		return {};
-	}
+	std::vector<KVEntry> KVStore::getEntries() const {
+		std::vector<KVEntry> result;
+		result.reserve(size());
 
+		for (const KVEntryView& entry : *this) {
+			result.push_back(KVEntry{ std::string(entry.key), std::string(entry.value) });
+		}
 
-	const_iterator::const_iterator()
-		: iter(nullptr)
-	{}
-	const_iterator::const_iterator(const_iterator&& other) noexcept
-		: iter(other.iter)
-	{
-		other.iter = nullptr;
+		return result;
 	}
-	const_iterator& const_iterator::operator=(const_iterator&& other) noexcept {
-		delete iter;
-		iter = other.iter;
-		other.iter = nullptr;
+	std::unordered_map<std::string, std::string> KVStore::getMap() const {
+		std::unordered_map<std::string, std::string> result;
+		result.reserve(size());
 
-		return *this;
-	}
-	const_iterator::const_iterator(ElementIterator* ptr)
-		: iter(ptr)
-	{}
-	const_iterator::~const_iterator() {
-		delete iter;
-		iter = nullptr;
+		for (const KVEntryView& entry : *this) {
+			result.insert(std::make_pair(std::string(entry.key), std::string(entry.value)));
+		}
+
+		return result;
 	}
 
-	bool const_iterator::operator==(const const_iterator& other) const {
-		return iter == nullptr || iter->atEnd();
+	void KVStore::resetStmts() {
+		data->containsStmt.reset();
+		data->getStmt.reset();
+		data->setStmt.reset();
+		data->eraseStmt.reset();
+		data->countStmt.reset();
 	}
-	bool const_iterator::operator!=(const const_iterator& other) const {
-		return iter != nullptr && !iter->atEnd();
-	}
+	void KVStore::createTable() {
+		SQLite::Statement stmt(
+			data->db.value(),
+			"CREATE TABLE \"main\"("
+			"\"hash\" INTEGER UNIQUE, "
+			"\"key\" BLOB NOT NULL, "
+			"\"value\" BLOB NOT NULL, "
+			"PRIMARY KEY(\"hash\"));"
+		);
 
-	const_iterator::pointer const_iterator::operator->() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
+		stmt.executeStep();
 
-		return {iter->key(), iter->value()};
-	}
-	const_iterator::reference const_iterator::operator*() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		return { iter->key(), iter->value() };
-	}
-
-	const_iterator& const_iterator::operator++() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		iter->advance();
-
-		return *this;
-	}
-	void const_iterator::operator++(int) {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		iter->advance();
-	}
-
-
-
-
-	const_table_iterator::const_table_iterator()
-		: iter(nullptr)
-	{}
-	const_table_iterator::const_table_iterator(const_table_iterator&& other) noexcept
-		: iter(other.iter)
-	{
-		other.iter = nullptr;
-	}
-	const_table_iterator& const_table_iterator::operator=(const_table_iterator&& other) noexcept {
-		delete iter;
-		iter = other.iter;
-		other.iter = nullptr;
-
-		return *this;
-	}
-	const_table_iterator::const_table_iterator(TableIterator* ptr)
-		: iter(ptr)
-	{}
-	const_table_iterator::~const_table_iterator() {
-		delete iter;
-		iter = nullptr;
-	}
-
-	bool const_table_iterator::operator==(const const_table_iterator& it) const {
-		return iter == nullptr || iter->atEnd();
-	}
-	bool const_table_iterator::operator!=(const const_table_iterator& it) const {
-		return iter != nullptr && !iter->atEnd();
-	}
-
-	const_table_iterator::pointer const_table_iterator::operator->() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		return iter->name();
-	}
-	const_table_iterator::reference const_table_iterator::operator*() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		return iter->name();
-	}
-
-	const_table_iterator& const_table_iterator::operator++() {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		iter->advance();
-
-		return *this;
-	}
-	void const_table_iterator::operator++(int) {
-		assert(iter != nullptr);
-		assert(!iter->atEnd());
-
-		iter->advance();
+		resetStmts();
 	}
 }

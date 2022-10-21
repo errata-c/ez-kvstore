@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 project(EZ_KVSTORE
-VERSION 0.1.0
+VERSION 0.2.0
 LANGUAGES C CXX)
 
 set(PACKAGE_NAME "ez-kvstore")
@@ -10,7 +10,6 @@ set(TARGET_NAME "kvstore")
 include(GNUInstallDirs)
 include(FetchContent)
 
-option(${PROJECT_NAME}_BUILD_TESTS "Build the test executables" ON)
 set(${PROJECT_NAME}_CONFIG_DIR "${CMAKE_INSTALL_DATAROOTDIR}/${PACKAGE_NAME}" CACHE STRING "The relative directory to install package config files.")
 
 FetchContent_Declare(
@@ -20,8 +19,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ez-cmake)
 
-ez_is_project_top_level(${PROJECT_NAME}_TOP_LEVEL)
-
 # Find deps
 find_package(SQLiteCpp CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
@@ -29,10 +26,10 @@ find_package(xxHash CONFIG REQUIRED)
 
 add_library(${TARGET_NAME} STATIC
 	"src/KVStore.cpp"
-	"src/KVPrivate.cpp"
-	"src/Values.cpp"
-	"src/Tables.cpp"
-	"src/Iterator.cpp"
+	"src/KVStoreValues.cpp"
+	"src/KVGenerators.cpp"
+	
+	"src/hashing.cpp"
 )
 
 target_include_directories(${TARGET_NAME} PUBLIC 
@@ -52,13 +49,16 @@ target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
 # Just for internal compatibility, so that subprojects can use the namespaced version
 add_library("ez::${TARGET_NAME}" ALIAS "${TARGET_NAME}")
 
-# Build the tests once the option is enabled.
-if(${${PROJECT_NAME}_BUILD_TESTS})
-	add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests")
-endif()
+
 
 # Conditional installation logic, we don't want to do this if this is a subproject.
-if(${${PROJECT_NAME}_TOP_LEVEL})
+if(PROJECT_IS_TOP_LEVEL)
+	include(CTest)
+	# Build the tests once the option is enabled.
+	if(BUILD_TESTING)
+		add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests")
+	endif()
+
 	install(
 		DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
 		TYPE INCLUDE
