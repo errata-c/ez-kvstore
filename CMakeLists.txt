@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.24)
 
 project(EZ_KVSTORE
-VERSION 0.2.0
+VERSION 0.2.1
 LANGUAGES C CXX)
 
 set(PACKAGE_NAME "ez-kvstore")
@@ -17,12 +17,26 @@ FetchContent_Declare(
 	GIT_REPOSITORY "https://github.com/errata-c/ez-cmake.git"
 	GIT_TAG "main"
 )
-FetchContent_MakeAvailable(ez-cmake)
+FetchContent_Declare(
+	SQLiteCpp
+	GIT_REPOSITORY "https://github.com/SRombauts/SQLiteCpp.git"
+	GIT_TAG "3.2.1"
+	FIND_PACKAGE_ARGS CONFIG REQUIRED
+)
+FetchContent_Declare(
+	fmt
+	GIT_REPOSITORY "https://github.com/fmtlib/fmt"
+	GIT_TAG "9.1.0"
+	FIND_PACKAGE_ARGS CONFIG REQUIRED
+)
+FetchContent_Declare(
+	xxHash
+	GIT_REPOSITORY "https://github.com/Cyan4973/xxHash.git"
+	GIT_TAG "v0.8.1"
+	FIND_PACKAGE_ARGS CONFIG REQUIRED
+)
 
-# Find deps
-find_package(SQLiteCpp CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
-find_package(xxHash CONFIG REQUIRED)
+FetchContent_MakeAvailable(ez-cmake SQLiteCpp fmt xxHash)
 
 add_library(${TARGET_NAME} STATIC
 	"src/KVStore.cpp"

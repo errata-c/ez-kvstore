@@ -1,6 +1,14 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
-find_package(Catch2 CONFIG REQUIRED)
+FetchContent_Declare(
+	Catch2
+	GIT_REPOSITORY "https://github.com/catchorg/Catch2.git"
+	GIT_TAG "v3.2.1"
+	FIND_PACKAGE_ARGS CONFIG REQUIRED
+)
+
+FetchContent_MakeAvailable(Catch2)
+
 
 configure_file("config.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/config.hpp" 
 	@ONLY
