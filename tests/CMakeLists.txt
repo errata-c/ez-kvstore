@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
+project(EZ_KVSTORE_TESTS)
 
 FetchContent_Declare(
 	Catch2
 	GIT_REPOSITORY "https://github.com/catchorg/Catch2.git"
 	GIT_TAG "v3.2.1"
-	FIND_PACKAGE_ARGS CONFIG REQUIRED
+	FIND_PACKAGE_ARGS CONFIG
 )
 
 FetchContent_MakeAvailable(Catch2)

@@ -21,19 +21,19 @@ FetchContent_Declare(
 	SQLiteCpp
 	GIT_REPOSITORY "https://github.com/SRombauts/SQLiteCpp.git"
 	GIT_TAG "3.2.1"
-	FIND_PACKAGE_ARGS CONFIG REQUIRED
+	FIND_PACKAGE_ARGS CONFIG
 )
 FetchContent_Declare(
 	fmt
 	GIT_REPOSITORY "https://github.com/fmtlib/fmt"
 	GIT_TAG "9.1.0"
-	FIND_PACKAGE_ARGS CONFIG REQUIRED
+	FIND_PACKAGE_ARGS CONFIG
 )
 FetchContent_Declare(
 	xxHash
 	GIT_REPOSITORY "https://github.com/Cyan4973/xxHash.git"
 	GIT_TAG "v0.8.1"
-	FIND_PACKAGE_ARGS CONFIG REQUIRED
+	FIND_PACKAGE_ARGS CONFIG
 )
 
 FetchContent_MakeAvailable(ez-cmake SQLiteCpp fmt xxHash)
